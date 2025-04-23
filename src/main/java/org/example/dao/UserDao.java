@@ -5,8 +5,8 @@ import java.util.List;
 
 public interface UserDao {
     void create(User user);
-    User findById(long id);
+    User findById(int id);
     List<User> findAll();
     void update(User user);
-    void delete(long id);
+    boolean delete(int id);
 }

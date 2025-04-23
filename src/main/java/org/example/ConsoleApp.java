@@ -6,12 +6,16 @@ import org.example.model.User;
 import org.hibernate.HibernateException;
 import org.hibernate.SessionFactory;
 import org.hibernate.cfg.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.Date;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Scanner;
 
 public class ConsoleApp {
+    private  static final Logger log = LoggerFactory.getLogger(ConsoleApp.class);
     private final UserDao userDao;
     private final Scanner scanner = new Scanner(System.in);
 
@@ -36,11 +40,14 @@ public class ConsoleApp {
                         System.out.println("Неверный выбор, попробуйте ещё раз.");
                 }
             } catch (HibernateException ex) {
+                log.error("Ошибка при работе с БД: {}", ex.getMessage(), ex);
                 System.out.println("Произошла ошибка при доступе к базе: " + ex.getMessage());
             } catch (NumberFormatException ex){
-                System.out.println("Пожалуйста, вводите только цифры там, где требуется ID или возраст.");
+                log.warn("Некорректный ввод числа: {}", ex.getMessage());
+                System.out.println("Некорректное значение, требуется ввести число");
             } catch (Exception ex){
-                System.out.println("Что‑то пошло не так: " + ex.getMessage());
+                log.error("Непредвиденная ошибка: {}", ex.getMessage(), ex);
+                System.out.println("Что-то пошло не так: " + ex.getMessage());
             }
         }
     }
@@ -62,9 +69,10 @@ public class ConsoleApp {
         String email = scanner.nextLine();
         System.out.print("Возраст: ");
         int age = Integer.parseInt(scanner.nextLine());
-        User user = new User(name, email, age, new Date());
+        OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);
+        User user = new User(name, email, age, createdAt);
         userDao.create(user);
-        System.out.println("Пользователь создан с id=" + user.getId());
+        System.out.println("Пользователь создан:\n" + user);
     }
 
     private void listUsers() {
@@ -73,43 +81,74 @@ public class ConsoleApp {
             System.out.println("Нет пользователей.");
         } else {
             System.out.println("Список пользователей:");
-            users.forEach(u ->
-                    System.out.printf("ID=%d, %s, %s, %d, создан: %s%n",
-                            u.getId(), u.getName(), u.getEmail(), u.getAge(), u.getCreatedAt())
-            );
+            users.forEach(System.out::println);
         }
     }
 
     private void updateUser() {
         System.out.print("ID пользователя для обновления: ");
-        long id = Long.parseLong(scanner.nextLine());
+        int id = Integer.parseInt(scanner.nextLine());
         User user = userDao.findById(id);
         if (user == null) {
             System.out.println("Пользователь не найден.");
             return;
+        }else {
+            System.out.println("Пользователь найден:\n" + user);
         }
-        System.out.print("Новое имя (ENTER - оставить без изменений): ");
+
+        String messageTmpl = "Введите новое значение поля '%s' (ENTER - оставить без изменений): ";
+        boolean needUpdate = false;
+
+        System.out.print(String.format(messageTmpl, "name"));
         String name = scanner.nextLine();
         if (!name.isBlank()) {
             user.setName(name);
+            needUpdate = true;
         }
-        // аналогично для email и age...
-        userDao.update(user);
-        System.out.println("Пользователь обновлён.");
+        System.out.print(String.format(messageTmpl, "email"));
+        String email = scanner.nextLine();
+        if (!email.isBlank()) {
+            user.setEmail(email);
+            needUpdate = true;
+        }
+
+        System.out.print(String.format(messageTmpl, "age"));
+        String ageStr = scanner.nextLine();
+        if (!ageStr.isBlank()) {
+            int age = Integer.parseInt(ageStr);
+            user.setAge(age);
+            needUpdate = true;
+        }
+
+        if (needUpdate){
+            userDao.update(user);
+            System.out.println("Пользователь обновлён:\n" + user);
+        }else {
+            System.out.println("Ни одно поле не было изменено, обновление не требуется.");
+        }
+
     }
 
     private void deleteUser() {
         System.out.print("ID пользователя для удаления: ");
-        long id = Long.parseLong(scanner.nextLine());
-        userDao.delete(id);
-        System.out.println("Пользователь удалён.");
+        int id = Integer.parseInt(scanner.nextLine());
+        boolean isDeleted = userDao.delete(id);
+        if (isDeleted){
+            System.out.println("Пользователь удалён.");
+        }else {
+            System.out.println("Пользователь не найден.");
+        }
+
     }
 
     public static void main(String[] args) {
         Configuration configuration = new Configuration().addAnnotatedClass(User.class);
-        SessionFactory sf = configuration.buildSessionFactory();
-        UserDao dao = new UserDaoImpl(sf);
-        new ConsoleApp(dao).run();
-        sf.close();
+        try(SessionFactory sf = configuration.buildSessionFactory()) {
+            UserDao dao = new UserDaoImpl(sf);
+            new ConsoleApp(dao).run();
+        } catch (Exception ex) {
+            log.error("Не удалось запустить приложение", ex);
+            System.err.println("Не удалось запустить приложение: " + ex.getMessage());
+        }
     }
 }

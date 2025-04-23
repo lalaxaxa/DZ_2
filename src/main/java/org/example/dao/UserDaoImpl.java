@@ -30,12 +30,16 @@ public class UserDaoImpl implements UserDao {
     public List<User> findAll(){
         try(Session session = sessionFactory.openSession()) {
             return session.createQuery("FROM User", User.class).getResultList();
+        }catch (HibernateException ex){
+            throw ex;
         }
     }
     @Override
-    public User findById(long id){
+    public User findById(int id){
         try(Session session = sessionFactory.openSession()) {
             return session.get(User.class, id);
+        }catch (HibernateException ex){
+            throw ex;
         }
     }
     @Override
@@ -51,15 +55,18 @@ public class UserDaoImpl implements UserDao {
         }
     }
     @Override
-    public void delete(long id){
+    public boolean delete(int id){
+        boolean isDelete = false;
         Transaction tx = null;
         try(Session session = sessionFactory.openSession()){
             tx = session.beginTransaction();
             User user = session.get(User.class, id);
             if (user != null){
                 session.delete(user);
+                isDelete = true;
             }
             tx.commit();
+            return isDelete;
         }catch (HibernateException ex){
             if (tx != null) tx.rollback();
             throw ex;

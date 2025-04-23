@@ -1,7 +1,9 @@
 package org.example.model;
 
 import javax.persistence.*;
-import java.util.Date;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
 @Entity
 @Table(name = "Users")
@@ -17,11 +19,10 @@ public class User {
     @Column(name="age")
     private int age;
     @Column(name="created_at")
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date createdAt;
+    private OffsetDateTime createdAt;
     public User(){}
 
-    public User(String name, String email, int age, Date createdAt) {
+    public User(String name, String email, int age, OffsetDateTime createdAt) {
         this.name = name;
         this.email = email;
         this.age = age;
@@ -60,23 +61,23 @@ public class User {
         this.age = age;
     }
 
-    public Date getCreatedAt() {
+    public OffsetDateTime getCreatedAt() {
         return createdAt;
     }
-
-    public void setCreatedAt(Date created_at) {
-        this.createdAt = created_at;
+    public void setCreatedAt(OffsetDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 
     @Override
     public String toString() {
-        return "User{" +
-                "id=" + id +
-                ", name='" + name + '\'' +
-                ", email='" + email + '\'' +
-                ", age=" + age +
-                ", created_at=" + createdAt +
-                '}';
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+        return "id=" + id +
+            ", name='" + name + '\'' +
+            ", email='" + email + '\'' +
+            ", age=" + age +
+            ", created_at=" + createdAt
+                .atZoneSameInstant(ZoneId.systemDefault())
+                .format(fmt);
     }
 }
 
