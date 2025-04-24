@@ -1,6 +1,7 @@
 package org.example.model;
 
 import javax.persistence.*;
+import javax.validation.constraints.*;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -12,14 +13,25 @@ public class User {
     @Column(name="id")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
+
     @Column(name="name")
+    @NotEmpty(message = "Имя не должно быть пустым")
+    @Size(min = 2, max = 100, message = "Длина имени должна быть от {min} до {max} символов")
     private String name;
     @Column(name="email")
+    @NotEmpty(message = "Email не должен быть пустым")
+    @Size(min = 6, max = 100, message = "Длина email должна быть от {min} до {max} символов")
+    @Email(message = "Некорректный email")
     private String email;
+
     @Column(name="age")
+    @Min(value = 0, message = "Минимальное значение для возраста 0")
+    @Max(value = 150, message = "Максимальное значение для возраста 150")
     private int age;
+
     @Column(name="created_at")
     private OffsetDateTime createdAt;
+
     public User(){}
 
     public User(String name, String email, int age, OffsetDateTime createdAt) {

@@ -6,21 +6,30 @@ import org.example.model.User;
 import org.hibernate.HibernateException;
 import org.hibernate.SessionFactory;
 import org.hibernate.cfg.Configuration;
+import org.hibernate.validator.messageinterpolation.ParameterMessageInterpolator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
+import javax.validation.ConstraintViolation;
+import javax.validation.Validation;
+import javax.validation.Validator;
+import javax.validation.ValidatorFactory;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Scanner;
+import java.util.Set;
 
 public class ConsoleApp {
-    private  static final Logger log = LoggerFactory.getLogger(ConsoleApp.class);
+    private static final Logger log = LoggerFactory.getLogger(ConsoleApp.class);
     private final UserDao userDao;
+    private final Validator validator;
     private final Scanner scanner = new Scanner(System.in);
 
-    public ConsoleApp(UserDao userDao) {
+    public ConsoleApp(UserDao userDao, Validator validator) {
         this.userDao = userDao;
+        this.validator = validator;
     }
 
     public void run() {
@@ -29,10 +38,18 @@ public class ConsoleApp {
             String choice = scanner.nextLine().trim();
             try {
                 switch (choice) {
-                    case "1": createUser(); break;
-                    case "2": listUsers(); break;
-                    case "3": updateUser(); break;
-                    case "4": deleteUser(); break;
+                    case "1":
+                        createUser();
+                        break;
+                    case "2":
+                        listUsers();
+                        break;
+                    case "3":
+                        updateUser();
+                        break;
+                    case "4":
+                        deleteUser();
+                        break;
                     case "0":
                         System.out.println("Выход.");
                         return;
@@ -42,10 +59,10 @@ public class ConsoleApp {
             } catch (HibernateException ex) {
                 log.error("Ошибка при работе с БД: {}", ex.getMessage(), ex);
                 System.out.println("Произошла ошибка при доступе к базе: " + ex.getMessage());
-            } catch (NumberFormatException ex){
+            } catch (NumberFormatException ex) {
                 log.warn("Некорректный ввод числа: {}", ex.getMessage());
                 System.out.println("Некорректное значение, требуется ввести число");
-            } catch (Exception ex){
+            } catch (Exception ex) {
                 log.error("Непредвиденная ошибка: {}", ex.getMessage(), ex);
                 System.out.println("Что-то пошло не так: " + ex.getMessage());
             }
@@ -71,6 +88,7 @@ public class ConsoleApp {
         int age = Integer.parseInt(scanner.nextLine());
         OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);
         User user = new User(name, email, age, createdAt);
+        if (!validateAndPrintErrors(user)) return;
         userDao.create(user);
         System.out.println("Пользователь создан:\n" + user);
     }
@@ -92,7 +110,7 @@ public class ConsoleApp {
         if (user == null) {
             System.out.println("Пользователь не найден.");
             return;
-        }else {
+        } else {
             System.out.println("Пользователь найден:\n" + user);
         }
 
@@ -120,10 +138,11 @@ public class ConsoleApp {
             needUpdate = true;
         }
 
-        if (needUpdate){
+        if (needUpdate) {
+            if (!validateAndPrintErrors(user)) return;
             userDao.update(user);
             System.out.println("Пользователь обновлён:\n" + user);
-        }else {
+        } else {
             System.out.println("Ни одно поле не было изменено, обновление не требуется.");
         }
 
@@ -133,19 +152,39 @@ public class ConsoleApp {
         System.out.print("ID пользователя для удаления: ");
         int id = Integer.parseInt(scanner.nextLine());
         boolean isDeleted = userDao.delete(id);
-        if (isDeleted){
+        if (isDeleted) {
             System.out.println("Пользователь удалён.");
-        }else {
+        } else {
             System.out.println("Пользователь не найден.");
         }
 
     }
 
+    private boolean validateAndPrintErrors(User user) {
+        Set<ConstraintViolation<User>> violations = validator.validate(user);
+        if (violations.isEmpty()) return true;
+
+        System.out.println("Ошибки валидации:");
+        violations.forEach(v ->
+                System.out.printf(" - %s: %s%n", v.getPropertyPath(), v.getMessage())
+        );
+        return false;
+    }
+
     public static void main(String[] args) {
+
         Configuration configuration = new Configuration().addAnnotatedClass(User.class);
-        try(SessionFactory sf = configuration.buildSessionFactory()) {
+        try (
+                SessionFactory sf = configuration.buildSessionFactory();
+                ValidatorFactory vf = Validation
+                        .byDefaultProvider()
+                        .configure()
+                        .messageInterpolator(new ParameterMessageInterpolator())
+                        .buildValidatorFactory();
+        ) {
+            Validator val = vf.getValidator();
             UserDao dao = new UserDaoImpl(sf);
-            new ConsoleApp(dao).run();
+            new ConsoleApp(dao, val).run();
         } catch (Exception ex) {
             log.error("Не удалось запустить приложение", ex);
             System.err.println("Не удалось запустить приложение: " + ex.getMessage());
