@@ -1,35 +1,20 @@
 package org.example;
 
-import org.example.dao.UserDao;
-import org.example.dao.UserDaoImpl;
 import org.example.model.User;
+import org.example.service.UserService;
 import org.hibernate.HibernateException;
-import org.hibernate.SessionFactory;
-import org.hibernate.cfg.Configuration;
-import org.hibernate.validator.messageinterpolation.ParameterMessageInterpolator;
+import java.util.List;
+import java.util.Scanner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
-import javax.validation.ConstraintViolation;
-import javax.validation.Validation;
-import javax.validation.Validator;
-import javax.validation.ValidatorFactory;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.List;
-import java.util.Scanner;
-import java.util.Set;
-
 public class ConsoleApp {
     private static final Logger log = LoggerFactory.getLogger(ConsoleApp.class);
-    private final UserDao userDao;
-    private final Validator validator;
+    private final UserService userService;
     private final Scanner scanner = new Scanner(System.in);
 
-    public ConsoleApp(UserDao userDao, Validator validator) {
-        this.userDao = userDao;
-        this.validator = validator;
+    public ConsoleApp(UserService userService) {
+        this.userService = userService;
     }
 
     public void run() {
@@ -59,9 +44,9 @@ public class ConsoleApp {
             } catch (HibernateException ex) {
                 log.error("Ошибка при работе с БД: {}", ex.getMessage(), ex);
                 System.out.println("Произошла ошибка при доступе к базе: " + ex.getMessage());
-            } catch (NumberFormatException ex) {
-                log.warn("Некорректный ввод числа: {}", ex.getMessage());
-                System.out.println("Некорректное значение, требуется ввести число");
+            } catch (IllegalArgumentException ex) {
+                log.warn(ex.getMessage());
+                System.out.println(ex.getMessage());
             } catch (Exception ex) {
                 log.error("Непредвиденная ошибка: {}", ex.getMessage(), ex);
                 System.out.println("Что-то пошло не так: " + ex.getMessage());
@@ -84,64 +69,54 @@ public class ConsoleApp {
         String name = scanner.nextLine();
         System.out.print("Email: ");
         String email = scanner.nextLine();
-        System.out.print("Возраст: ");
-        int age = Integer.parseInt(scanner.nextLine());
-        OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);
-        User user = new User(name, email, age, createdAt);
-        if (!validateAndPrintErrors(user)) return;
-        userDao.create(user);
-        System.out.println("Пользователь создан:\n" + user);
+        int age = readInt("Возраст: ", false);
+
+        User user = userService.create(name, email, age);
+        System.out.println("Пользователь создан: " + user);
+        log.info("Создан пользователь: {}", user);
     }
 
     private void listUsers() {
-        List<User> users = userDao.findAll();
+        List<User> users = userService.findAll();
         if (users.isEmpty()) {
             System.out.println("Нет пользователей.");
         } else {
             System.out.println("Список пользователей:");
             users.forEach(System.out::println);
+            System.out.println("Всего пользователей: " + users.size());
         }
+        log.info("Выведено пользователей: {}", users.size());
     }
 
     private void updateUser() {
-        System.out.print("ID пользователя для обновления: ");
-        int id = Integer.parseInt(scanner.nextLine());
-        User user = userDao.findById(id);
+        int id = readInt("ID пользователя для обновления: ", false);
+        User user = userService.findById(id);
         if (user == null) {
-            System.out.println("Пользователь не найден.");
+            System.out.println("Пользователь с ID=" + id + " не найден!");
             return;
         } else {
-            System.out.println("Пользователь найден:\n" + user);
+            System.out.println("Пользователь найден: " + user);
         }
 
-        String messageTmpl = "Введите новое значение поля '%s' (ENTER - оставить без изменений): ";
         boolean needUpdate = false;
+        String messageTmpl = "Введите новое значение поля '%s' (ENTER - оставить без изменений): ";
 
         System.out.print(String.format(messageTmpl, "name"));
         String name = scanner.nextLine();
-        if (!name.isBlank()) {
-            user.setName(name);
-            needUpdate = true;
-        }
+        if(name.isBlank()) name = null;
+
         System.out.print(String.format(messageTmpl, "email"));
         String email = scanner.nextLine();
-        if (!email.isBlank()) {
-            user.setEmail(email);
-            needUpdate = true;
-        }
+        if(email.isBlank()) email = null;
 
-        System.out.print(String.format(messageTmpl, "age"));
-        String ageStr = scanner.nextLine();
-        if (!ageStr.isBlank()) {
-            int age = Integer.parseInt(ageStr);
-            user.setAge(age);
-            needUpdate = true;
-        }
+        Integer age = readInt(String.format(messageTmpl, "age"), true);
+
+        if (name != null || email != null || age != null) needUpdate = true;
 
         if (needUpdate) {
-            if (!validateAndPrintErrors(user)) return;
-            userDao.update(user);
-            System.out.println("Пользователь обновлён:\n" + user);
+            User updatedUser = userService.update(id, name, email, age);
+            System.out.println("Пользователь обновлён: " + updatedUser);
+            log.info("Обновлён пользователь: {}", updatedUser);
         } else {
             System.out.println("Ни одно поле не было изменено, обновление не требуется.");
         }
@@ -149,45 +124,28 @@ public class ConsoleApp {
     }
 
     private void deleteUser() {
-        System.out.print("ID пользователя для удаления: ");
-        int id = Integer.parseInt(scanner.nextLine());
-        boolean isDeleted = userDao.delete(id);
-        if (isDeleted) {
-            System.out.println("Пользователь удалён.");
-        } else {
-            System.out.println("Пользователь не найден.");
+        int id = readInt("ID пользователя для удаления: ", false);
+        User deletedUser = userService.delete(id);
+        if (deletedUser == null) {
+            System.out.println("Пользователь с ID=" + id + " не найден!");
+        }
+        else {
+            System.out.println("Пользователь удалён: " + deletedUser);
+            log.info("Удаление пользователя: {}", deletedUser);
         }
 
     }
 
-    private boolean validateAndPrintErrors(User user) {
-        Set<ConstraintViolation<User>> violations = validator.validate(user);
-        if (violations.isEmpty()) return true;
-
-        System.out.println("Ошибки валидации:");
-        violations.forEach(v ->
-                System.out.printf(" - %s: %s%n", v.getPropertyPath(), v.getMessage())
-        );
-        return false;
-    }
-
-    public static void main(String[] args) {
-
-        Configuration configuration = new Configuration().addAnnotatedClass(User.class);
-        try (
-                SessionFactory sf = configuration.buildSessionFactory();
-                ValidatorFactory vf = Validation
-                        .byDefaultProvider()
-                        .configure()
-                        .messageInterpolator(new ParameterMessageInterpolator())
-                        .buildValidatorFactory();
-        ) {
-            Validator val = vf.getValidator();
-            UserDao dao = new UserDaoImpl(sf);
-            new ConsoleApp(dao, val).run();
-        } catch (Exception ex) {
-            log.error("Не удалось запустить приложение", ex);
-            System.err.println("Не удалось запустить приложение: " + ex.getMessage());
+    private Integer readInt(String message, boolean blankInputIsOK){
+        while (true){
+            System.out.print(message);
+            String input = scanner.nextLine();
+            if (blankInputIsOK && input.isBlank()) return null;
+            try {
+                return Integer.parseInt(input);
+            } catch (NumberFormatException ex) {
+                System.out.println("Некорректный ввод. Введите целое число.");
+            }
         }
     }
 }

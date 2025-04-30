@@ -8,5 +8,5 @@ public interface UserDao {
     User findById(int id);
     List<User> findAll();
     void update(User user);
-    boolean delete(int id);
+    void delete(User user);
 }

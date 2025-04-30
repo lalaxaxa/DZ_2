@@ -55,18 +55,12 @@ public class UserDaoImpl implements UserDao {
         }
     }
     @Override
-    public boolean delete(int id){
-        boolean isDelete = false;
+    public void delete(User user){
         Transaction tx = null;
         try(Session session = sessionFactory.openSession()){
             tx = session.beginTransaction();
-            User user = session.get(User.class, id);
-            if (user != null){
-                session.delete(user);
-                isDelete = true;
-            }
+            session.delete(user);
             tx.commit();
-            return isDelete;
         }catch (HibernateException ex){
             if (tx != null) tx.rollback();
             throw ex;
