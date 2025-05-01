@@ -66,10 +66,10 @@ public class UserServiceImpl implements UserService{
 
     private void validate(User user) {
         log.debug("-> validate(user='{}')", user);
-        Set<ConstraintViolation<User>> errs = validator.validate(user);
-        if (!errs.isEmpty()) {
+        Set<ConstraintViolation<User>> errors = validator.validate(user);
+        if (!errors.isEmpty()) {
             StringBuilder sb = new StringBuilder("Ошибка валидации:");
-            errs.forEach(v ->
+            errors.forEach(v ->
                 sb.append(String.format("%n - %s: %s",
                     v.getPropertyPath(),
                     v.getMessage()

@@ -54,6 +54,22 @@
       <scope>test</scope>
     </dependency>
 
+    <!-- JUnit 5 интеграция -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>1.21.0</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Модуль PostgreSQL -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>1.21.0</version>
+      <scope>test</scope>
+    </dependency>
+
 
   </dependencies>
 
